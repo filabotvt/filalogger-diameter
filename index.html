@@ -1,0 +1,119 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Real-time Data Visualization</title>
+    <!-- Include Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Link to global CSS styles -->
+    <link rel="stylesheet" href="./public/style/global.css">
+  </head>
+  <body>
+    <main class="flex gap-2">
+      <!-- Sidebar for settings -->
+      <div class="aside hidden" id="aside">
+        <div class="aside-content flex flex-col gap-2">
+          <div class="flex items-center">
+            <!-- Button to toggle settings -->
+            <button class="link-btn" onclick="toggleSettings()">
+              <img src="./public/img/arrow-left.png" alt="close" height="30" width="auto" />
+            </button>
+            <h3 class="flex-1 title">Settings</h3>
+          </div>
+          <div class="flex flex-col gap-2 items-center">
+            <label class="text-align-center w-full">Description</label>
+            <!-- Textarea for description -->
+            <textarea class="w-full" name="Description" id="description" rows="5"></textarea>
+          </div>
+          <!-- Form group for filament diameter -->
+          <div class="form-group flex gap-2 items-center justify-between">
+            <label for="filamentDiameter">Filament Diameter</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="filamentDiameter" value="1.75" step="0.01" />
+              <span class="w-50px">mm</span>
+            </div>
+          </div>
+          <!-- Form group for upper limit -->
+          <div class="form-group flex gap-2 items-center justify-between">
+            <label for="upperLimit">Upper Limit</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="upperLimit" value="1.80" step="0.01" />
+              <span class="w-50px">mm</span>
+            </div>
+          </div>
+          <!-- Form group for lower limit -->
+          <div class="form-group flex gap-2 items-center justify-between">
+            <label for="lowestLimit">Lower Limit</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="lowestLimit" value="1.70" step="0.01" />
+              <span class="w-50px">mm</span>
+            </div>
+          </div>
+          <!-- Form group for spool number -->
+          <div class="form-group flex gap-2 items-center justify-between">
+            <label for="spoolNumber">Spool Number</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="spoolNumber" value="2" />
+              <button class="upload-link link-btn" onclick="toggleSettings()">
+                Spool Data Folder
+              </button>
+            </div>
+          </div>
+          <!-- Form group for batch number -->
+          <div class="form-group flex gap-2 items-center justify-between">
+            <label for="batchNumber">Batch Number</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="batchNumber" value="0" />
+              <span class="w-50px"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Main container -->
+      <div class="container">
+        <header class="flex items-center">
+          <!-- Toggle part for settings -->
+          <div class="toggle-part flex items-start gap-2 flex-no-shrink" id="togglePart">
+            <button class="link-btn flex items-center justify-center" id="linkBtn" onclick="toggleSettings()">
+              <img src="./public/img/gears.png" alt="settings" height="30" width="30" />
+            </button>
+            <div class="flex-col gap-2 flex">
+              <h3>Diameter <strong id="filamentDiameterText"> 1.75 mm</strong></h3>
+              <h3>Highest Value <strong id="upperLimitText"> 1.75 mm</strong></h3>
+              <h3>Lowest Value <strong id="lowestLimitText"> 1.75 mm</strong></h3>
+              <h3>Spool Number <strong id="spoolNumberText"> 2</strong></h3>
+              <h3>Batch Number <strong id="batchNumberText"> 0</strong></h3>
+              <h3>Duration <strong id="durationText"> 0:00:03</strong></h3>
+            </div>
+          </div>
+          <!-- Logo and action buttons -->
+          <div class="flex items-center gap-2">
+            <div class="logo-container justify-center">
+              <img src="./public/img/filabot5.png" alt="filabot-logo" height="auto" width="80%" class="logo"/>
+            </div>
+            <div class="action-btns flex flex-1 items-center gap-2 justify-center">
+              <button id="startBtn" class="btn">Start Capture</button>
+              <button id="stopBtn" class="btn">Stop Capture</button>
+            </div>
+          </div>
+        </header>
+        <!-- Chart section -->
+        <section class="chart-section">
+          <div class="chart-container">
+            <strong>Realtime Diameter</strong>
+            <div id="legend-container"></div>
+            <canvas id="minuteChart"></canvas>
+          </div>
+          <div class="chart-container">
+            <strong>Historical Diameter</strong>
+            <canvas id="hourChart"></canvas>
+          </div>
+        </section>
+      </div>
+    </main>
+    <!-- Include JavaScript files -->
+    <script src="dist/renderer.js"></script>
+    <script src="dist/utils.js"></script>
+  </body>
+</html>
