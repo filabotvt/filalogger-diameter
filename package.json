@@ -1,22 +1,43 @@
 {
   "name": "filalogger",
   "version": "1.0.0",
+  "description": "Filament Diameter Logger",
+  "author": "Nathik Azad",
   "main": "dist/main.js",
   "scripts": {
     "start": "tsc && electron .",
     "electron": "electron .",
     "build": "tsc",
-    "watch": "tsc -w"
+    "watch": "tsc -w",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
   },
   "devDependencies": {
     "@types/node": "^20.17.16",
     "@types/serialport": "^8.0.5",
     "electron": "^29.0.0",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@serialport/parser-readline": "^10.0.0",
     "chart.js": "^4.4.7",
-    "serialport": "^10.0.0",
-    "@serialport/parser-readline": "^10.0.0"
+    "serialport": "^10.0.0"
+  },
+  "build": {
+    "appId": "com.filalogger.app",
+    "productName": "FilaLogger",
+    "directories": {
+        "output": "release",
+        "buildResources": "dist"
+    },
+    "files": [
+        "**/*",
+        "dist/**/*",
+        "!.github",
+        "!.vs",
+        "!node_modules/*"
+    ],
+    "icon": "icon.png"
   }
 }

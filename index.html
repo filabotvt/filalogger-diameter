@@ -3,9 +3,9 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>Real-time Data Visualization</title>
+    <title>FilaLogger</title>
     <!-- Include Chart.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="public/js/chart.js"></script>
     <!-- Link to global CSS styles -->
     <link rel="stylesheet" href="./public/style/global.css">
   </head>
@@ -55,7 +55,7 @@
             <label for="spoolNumber">Spool Number</label>
             <div class="flex items-center gap-2">
               <input type="number" id="spoolNumber" value="2" />
-              <button class="upload-link link-btn" onclick="toggleSettings()">
+              <button class="upload-link link-btn" id="openFolderBtn">
                 Spool Data Folder
               </button>
             </div>

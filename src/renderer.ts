@@ -1,7 +1,12 @@
-// renderer.ts which is added inside index.html
 declare const Chart: any;  // TypeScript declaration
 
-
+const formatTimeLabel = (date: Date): string => {
+  return date.toLocaleTimeString('en-US', {
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+};
 
 const minuteData = {
   labels: Array(0).fill(0),
@@ -84,7 +89,11 @@ const minuteChart = new Chart(minuteCanvas, {
           display: true,
           text: 'Time'
         },
-       
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          maxTicksLimit: 3
+        }
       }
     },
     animation: {
@@ -92,10 +101,10 @@ const minuteChart = new Chart(minuteCanvas, {
     },
     plugins: {
       legend: {
-          display: true,
-         align:'start'
+        display: true,
+        align: 'start'
       }
-  }
+    }
   }
 });
 
@@ -119,7 +128,11 @@ const hourChart = new Chart(hourCanvas, {
           display: true,
           text: 'Time'
         },
-       
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45,
+          maxTicksLimit: 3
+        }
       }
     },
     animation: {
@@ -127,70 +140,35 @@ const hourChart = new Chart(hourCanvas, {
     },
     plugins: {
       legend: {
-          display: true,
-         align:'start'
+        display: true,
+        align: 'start'
       }
-  }
+    }
   }
 });
 
-let minuteCounter = 0;
-let hourCounter = 0;
-let hourAccumulator = 0;
+let lastTenPoints: number[] = []
+let lastState: SerialState | null= null;
 
-function generateRandomNumber(): number {
-  const u1 = Math.random();
-  const u2 = Math.random();
-  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-  const value = 3.8 + (z * 0.1);
-  return Math.max(3.0, Math.min(4.0, value));
+interface SerialState {
+  recording: boolean;
+  max: number;
+  min: number;
+  spoolNumber: number;
+  batchNumber: number;
+  upperLimit: number;
+  lowerLimit: number;
+  target: number;
 }
-
-function updateCharts() {
-  const newValue = generateRandomNumber();
-  
-  if (minuteData.datasets[0].data.length < 60) {
-    minuteData.datasets[0].data.push(newValue);
-    minuteData.datasets[1].data.push(3.7);
-    minuteData.datasets[2].data.push(3.9);
-    minuteData.labels.push(minuteCounter);
-  } else {
-    minuteData.datasets[0].data.shift();
-    minuteData.datasets[0].data.push(newValue);
-    minuteData.labels.shift();
-    minuteData.labels.push(minuteCounter);
-  }
-  minuteChart.update();
-  
-  // hourAccumulator += newValue;
-  
-  hourData.datasets[0].data.push(newValue);
-  hourData.datasets[1].data.push(3.7);
-  hourData.datasets[2].data.push(3.9);
-  hourData.labels.push(minuteCounter);
-  hourChart.update();
-
-  minuteCounter++;
-  // if (minuteCounter === 60) {
-  //   const hourlyAverage = hourAccumulator / 60;
-  //   hourData.datasets[0].data.shift();
-  //   hourData.datasets[0].data.push(hourlyAverage);
-  //   hourChart.update();
-    
-  //   minuteCounter = 0;
-  //   hourAccumulator = 0;
-  //   hourCounter++;
-  // }
-}
-
-// setInterval(updateCharts, 1000);
 
 interface Window {
   serialApi: {
       connectPort: (portName: string) => Promise<{ success: boolean; error?: string }>;
       onDiameterChange: (callback: (diameter: string) => void) => void;
-      onCommandUpdate: (callback: (command: any) => void) => void;
+      onStateChange: (callback: (state: SerialState) => void) => void;
       removeListeners: () => void;
+      sendCommand: (command: string) => Promise<{ success: boolean; error?: string }>;
+      openFolder: () => Promise<{ success: boolean; error?: string }>;
   };
 }
 
@@ -218,28 +196,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-// Set up the diameter change listener
 window.serialApi.onDiameterChange((diameter) => {
   const diameterValue = parseFloat(diameter);
   if (!isNaN(diameterValue)) {
-    // Update both minute and hour data
+    const currentTime = new Date();
+    const timeLabel = formatTimeLabel(currentTime);
+
+    // Update minute data
     if (minuteData.datasets[0].data.length < 60) {
       minuteData.datasets[0].data.push(diameterValue);
-      minuteData.labels.push(minuteCounter);
+      minuteData.labels.push(timeLabel);
     } else {
       minuteData.datasets[0].data.shift();
       minuteData.datasets[0].data.push(diameterValue);
       minuteData.labels.shift();
-      minuteData.labels.push(minuteCounter);
+      minuteData.labels.push(timeLabel);
     }
     minuteChart.update();
     
-    hourData.datasets[0].data.push(diameterValue);
-    hourData.labels.push(minuteCounter);
-    hourChart.update();
-    
-    minuteCounter++;
+    if(lastTenPoints.length >= 10) {
+      const average = lastTenPoints.reduce((acc, val) => acc + val, 0) / lastTenPoints.length;
+      hourData.datasets[0].data.push(diameterValue);
+      hourData.labels.push(timeLabel);
+      hourChart.update();
+      lastTenPoints = []
+    } else {
+      lastTenPoints.push(diameterValue)
+    }
   }
+});
+
+window.serialApi.onStateChange((state) => {
+  if (state.recording == true && (lastState == null || lastState.recording == false)){
+    minuteData.datasets[0].data = []
+    minuteData.labels = [];
+    minuteChart.update();
+    hourData.datasets[0].data = []
+    hourData.labels = []
+    hourChart.update();
+  }
+  lastState = state
+
 });
 
 // Clean up listeners when window is closed
@@ -247,3 +244,36 @@ window.addEventListener('beforeunload', () => {
   window.serialApi.removeListeners();
 });
  
+
+document.getElementById('startBtn')?.addEventListener('click', async () => {
+  try {
+      const result = await window.serialApi.sendCommand('start');
+      if (!result.success) {
+          console.error('Failed to send start command:', result.error);
+      }
+  } catch (error) {
+      console.error('Error sending start command:', error);
+  }
+});
+
+document.getElementById('openFolderBtn')?.addEventListener('click', async () => {
+  try {
+      const result = await window.serialApi.openFolder();
+      if (!result.success) {
+          console.error('Failed to send start command:', result.error);
+      }
+  } catch (error) {
+      console.error('Error sending start command:', error);
+  }
+});
+
+document.getElementById('stopBtn')?.addEventListener('click', async () => {
+  try {
+      const result = await window.serialApi.sendCommand('stop');
+      if (!result.success) {
+          console.error('Failed to send stop command:', result.error);
+      }
+  } catch (error) {
+      console.error('Error sending stop command:', error);
+  }
+});

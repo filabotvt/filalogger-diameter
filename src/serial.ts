@@ -2,7 +2,9 @@
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 import { EventEmitter } from 'events';
-import { ipcMain } from 'electron';
+import { ipcMain, app, shell } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 
@@ -16,10 +18,29 @@ export class SerialHandler {
     }
 
     private setupIpcHandlers() {
-        // Handle requests from renderer
+        // Handle connection requests from renderer
         ipcMain.handle('connect-port', async (_, portName: string) => {
+            // try {
+            //     await this.serialService.connectToSerialPort(portName);
+                return { success: true };
+            // } catch (error: any) {
+            //     return { success: false, error: error.message };
+            // }
+        });
+
+        // Handle command requests from renderer
+        ipcMain.handle('send-command', async (_, command: string) => {
             try {
-                await this.serialService.connectToSerialPort(portName);
+                await this.serialService.sendCommand(command);
+                return { success: true };
+            } catch (error: any) {
+                return { success: false, error: error.message };
+            }
+        });
+
+        ipcMain.handle('open-folder', async (_) => {
+            try {
+                await this.serialService.openFolder();
                 return { success: true };
             } catch (error: any) {
                 return { success: false, error: error.message };
@@ -27,9 +48,14 @@ export class SerialHandler {
         });
     }
 
+
     private setupSerialEvents() {
-        this.serialService.on('diameterChange', (command) => {
-            this.sendToRenderer('diameterChange', command);
+        this.serialService.on('diameterChange', (diameter) => {
+            this.sendToRenderer('diameterChange', diameter);
+        });
+
+        this.serialService.on('stateChange', (state) => {
+            this.sendToRenderer('stateChange', state);
         });
     }
 
@@ -48,8 +74,25 @@ interface SerialPortInfo {
     productId?: string;
 }
 
+export interface SerialState {
+    recording: boolean;
+    max: number;
+    min: number;
+    spoolNumber: number;
+    batchNumber: number;
+    upperLimit: number;
+    lowerLimit: number;
+    target: number;
+}
+
+interface CSV {
+    writer: fs.WriteStream | null;  // Add CSV writer to state
+    filePath: string | null;    // Track current CSV file path
+}
+
 interface SerialEvents {
     diameterChange: (command: number) => void;
+    stateChange: (state: SerialState) => void;
 }
 
 // Extend EventEmitter with our custom events
@@ -62,15 +105,77 @@ class SerialService extends EventEmitter {
     private serialPort: SerialPort | null;
     private portDataIsSet: boolean;
     private parser: ReadlineParser | null;
+    private state: SerialState;
+    private csv: CSV
+    private boundHandleSerialData: (data: string) => void; 
+    private readonly CONFIG_FILE = 'settings.json';
+    private configPath: string;
 
     constructor() {
         super();
         this.serialPort = null;
         this.parser = null;
         this.portDataIsSet = false;
-        
-        // Initialize by finding and connecting to Arduino Leonardo
+        this.configPath = path.join(app.getPath('userData'), this.CONFIG_FILE);
+
+        this.state = {
+            recording: false,
+            max: 0,
+            min: Infinity,
+            spoolNumber: 0,
+            batchNumber: 0,
+            upperLimit: 1.8,
+            lowerLimit: 1.6,
+            target: 1.7
+        }
+        this.csv = {
+            writer: null,
+            filePath: null
+        }
+        console.log(app.getPath('userData'))
+        this.loadSettings();
+        this.boundHandleSerialData = this.handleSerialData.bind(this);
         this.initializeArduino();
+    }
+
+    public openFolder() {
+        shell.openPath(path.join(app.getPath('userData'), 'logs'))
+    }
+
+    private loadSettings(): void {
+        try {
+            if (fs.existsSync(this.configPath)) {
+                const savedSettings = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+                console.log(savedSettings)
+                this.state = {
+                    ...this.state,
+                    spoolNumber: savedSettings.spoolNumber ?? this.state.spoolNumber,
+                    target: savedSettings.target ?? this.state.target,
+                    upperLimit: savedSettings.upperLimit ?? this.state.upperLimit,
+                    lowerLimit: savedSettings.lowerLimit ?? this.state.lowerLimit
+                };
+            } else {
+                // If file doesn't exist, create it with default values
+                this.saveSettings();
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+            // Continue with default values if there's an error
+        }
+    }
+
+    private saveSettings(): void {
+        try {
+            const settings = {
+                spoolNumber: this.state.spoolNumber,
+                target: this.state.target,
+                upperLimit: this.state.upperLimit,
+                lowerLimit: this.state.lowerLimit
+            };
+            fs.writeFileSync(this.configPath, JSON.stringify(settings, null, 2));
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
     }
 
     private async initializeArduino(): Promise<void> {
@@ -78,7 +183,7 @@ class SerialService extends EventEmitter {
             const arduinoPort = await this.findArduinoLeonardo();
             if (arduinoPort) {
                 console.log('Found Arduino Leonardo at:', arduinoPort);
-                await this.connectToSerialPort(arduinoPort);
+                await this.setPort(arduinoPort);
             } else {
                 console.log('Arduino Leonardo not found');
             }
@@ -102,6 +207,7 @@ class SerialService extends EventEmitter {
 
     private setPort(portName: string): void {
         try {
+            console.log("Opening serial")
             this.serialPort = new SerialPort({
                 path: portName,
                 baudRate: 115200,
@@ -110,27 +216,86 @@ class SerialService extends EventEmitter {
                 stopBits: 1,
                 rtscts: true
             });
-            
+            console.log("Opening serial success")
             this.portDataIsSet = true;
 
             // Set up parser to handle incoming data
             this.parser = new ReadlineParser({ delimiter: '\r\n' });
             this.serialPort.pipe(this.parser);
-            this.parser.on('data', (data: string) => this.handleSerialData(data));
-
-            // Handle errors
-            this.serialPort.on('error', (err: Error) => {
-                console.error('Serial port error:', err);
-            });
         } catch (error) {
             console.error('Error setting up serial port:', error);
             throw error;
         }
     }
 
-    public async connectToSerialPort(portName: string): Promise<void> {
-        this.setPort(portName);
+
+    private createCsvFile(): void {
+        // Create logs directory if it doesn't exist
+        const logsDir = path.join(app.getPath('userData'), 'logs');
+        if (!fs.existsSync(logsDir)) {
+            fs.mkdirSync(logsDir);
+        }
+
+        // Generate filename in mm-dd-yyyy___Spool<number> format
+        const date = new Date();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const year = date.getFullYear();
+        const filename = `${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
+        this.csv.filePath = path.join(logsDir, filename);
+
+        // Create CSV file with headers
+        this.csv.writer = fs.createWriteStream(this.csv.filePath);
+        this.csv.writer.write('Timestamp,Diameter\n');
     }
+
+    private writeToCSV(diameter: number): void {
+        if (!this.csv.writer) return;
+
+        // Calculate Excel timestamp (days since 1900)
+        const now = new Date();
+        const excelEpoch = new Date(1899, 11, 30); // Excel epoch (December 30, 1899)
+        const millisecondsPerDay = 24 * 60 * 60 * 1000;
+        const excelTimestamp = (now.getTime() - excelEpoch.getTime()) / millisecondsPerDay;
+
+        // Write data to CSV
+        this.csv.writer.write(`${excelTimestamp},${diameter}\n`);
+    }
+
+    public async sendCommand(command: string): Promise<void> {
+        if (!this.parser || !this.serialPort) {
+            return;
+        }
+        
+        if (command === "start") {
+            this.state.spoolNumber++;
+            this.saveSettings();
+            this.createCsvFile(); // Create new CSV file
+            this.parser.on('data', this.boundHandleSerialData);
+            this.state = {
+                ...this.state,
+                recording: true,
+                min: Infinity,
+                max: 0
+            };
+            this.emit('stateChange', this.state);
+        } else if (command === "stop") {
+            this.parser.removeListener('data', this.boundHandleSerialData);
+            // Close CSV file if it's open
+            if (this.csv.writer) {
+                this.csv.writer.end();
+                this.csv.writer = null;
+                this.csv.filePath = null;
+            }
+            this.state = {
+                ...this.state,
+                recording: false
+            };
+            this.emit('stateChange', this.state);
+        }
+    }
+
+
 
     private parseData(binaryString: string): number { 
         var dec = "" 
@@ -149,10 +314,17 @@ class SerialService extends EventEmitter {
 
 
     private handleSerialData(dataIn: string): void {
-
-        console.log(this.parseData(dataIn))
-
-        this.emit('diameterChange', this.parseData(dataIn));
+        const diameter = this.parseData(dataIn);
+        if(diameter > this.state.upperLimit) {
+            this.state.upperLimit = diameter
+            this.emit('stateChange', this.state);
+        }
+        if(diameter < this.state.lowerLimit) {
+            this.state.lowerLimit = diameter
+            this.emit('stateChange', this.state);
+        }
+        this.writeToCSV(diameter); // Write to CSV
+        this.emit('diameterChange', diameter);
     }
 }
 
