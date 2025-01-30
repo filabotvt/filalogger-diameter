@@ -1,4 +1,6 @@
+// renderer.ts which is added inside index.html
 declare const Chart: any;  // TypeScript declaration
+
 
 
 const minuteData = {
@@ -74,8 +76,8 @@ const minuteChart = new Chart(minuteCanvas, {
           display: true,
           text: 'Diameter (mm)'
         },
-        min: 3.3,
-        max: 4.3
+        min: 0,
+        max: 10
       },
       x: {
         title: {
@@ -109,8 +111,8 @@ const hourChart = new Chart(hourCanvas, {
           display: true,
           text: 'Diameter (mm)'
         },
-        min: 3.3,
-        max: 4.3
+        min: 0,
+        max: 10
       },
       x: {
         title: {
@@ -181,10 +183,67 @@ function updateCharts() {
   // }
 }
 
-setInterval(updateCharts, 1000);
+// setInterval(updateCharts, 1000);
+
+interface Window {
+  serialApi: {
+      connectPort: (portName: string) => Promise<{ success: boolean; error?: string }>;
+      onDiameterChange: (callback: (diameter: string) => void) => void;
+      onCommandUpdate: (callback: (command: any) => void) => void;
+      removeListeners: () => void;
+  };
+}
+
+// Set up serial port connection
+async function connectToSerial() {
+  try {
+    const result = await window.serialApi.connectPort('COM3');
+    if (!result.success) {
+      console.error('Failed to connect:', result.error);
+      // Retry connection after 5 seconds if failed
+      setTimeout(connectToSerial, 5000);
+    }
+  } catch (error) {
+    console.error('Connection error:', error);
+    // Retry connection after 5 seconds if error
+    setTimeout(connectToSerial, 5000);
+  }
+}
+
+
+// Connect to serial port automatically when page loads
+document.addEventListener('DOMContentLoaded', () => {
+  connectToSerial();
+});
 
 
 
+// Set up the diameter change listener
+window.serialApi.onDiameterChange((diameter) => {
+  const diameterValue = parseFloat(diameter);
+  if (!isNaN(diameterValue)) {
+    // Update both minute and hour data
+    if (minuteData.datasets[0].data.length < 60) {
+      minuteData.datasets[0].data.push(diameterValue);
+      minuteData.labels.push(minuteCounter);
+    } else {
+      minuteData.datasets[0].data.shift();
+      minuteData.datasets[0].data.push(diameterValue);
+      minuteData.labels.shift();
+      minuteData.labels.push(minuteCounter);
+    }
+    minuteChart.update();
+    
+    hourData.datasets[0].data.push(diameterValue);
+    hourData.labels.push(minuteCounter);
+    hourChart.update();
+    
+    minuteCounter++;
+  }
+});
 
-//Khalil Gibran
+// Clean up listeners when window is closed
+window.addEventListener('beforeunload', () => {
+  window.serialApi.removeListeners();
+});
  
