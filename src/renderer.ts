@@ -3,7 +3,7 @@ declare const Chart: any;  // TypeScript declaration
 const formatTimeLabel = (date: Date): string => {
   return date.toLocaleTimeString('en-US', {
     minute: '2-digit',
-    second: '2-digit',
+    hour: '2-digit',
     hour12: true
   });
 };
@@ -12,17 +12,25 @@ const minuteData = {
   labels: Array(0).fill(0),
   datasets: [
     {
-      label: 'Last 60 Seconds',
+      label: 'Meas. Diameter',
       data: Array(0).fill(null),
       borderColor: 'rgb(75, 192, 192)',
       tension: 0.2,
       fill: false
     },
     {
+      label: 'Nom. Diameter',
+      data: Array(0).fill(3.7),
+      borderColor: 'rgb(63, 235, 48)',
+      // borderDash: [5, 5],
+      tension: 0,
+      fill: false
+    },
+    {
       label: 'Upper Bound',
       data: Array(0).fill(3.9),
       borderColor: 'rgba(255, 0, 0, 0.5)',
-      borderDash: [5, 5],
+      // borderDash: [5, 5],
       tension: 0,
       fill: false
     },
@@ -30,7 +38,7 @@ const minuteData = {
       label: 'Lower Bound',
       data: Array(0).fill(3.7),
       borderColor: 'rgba(255, 0, 0, 0.5)',
-      borderDash: [5, 5],
+      // borderDash: [5, 5],
       tension: 0,
       fill: false
     }
@@ -41,17 +49,25 @@ const hourData = {
   labels: Array(0).fill(0),
   datasets: [
     {
-      label: 'All time',
+      label: 'Meas. Diameter',
       data: Array(0).fill(0),
-      borderColor: 'rgb(255, 99, 132)',
+      borderColor: 'rgb(75, 192, 192)',
       tension: 0.2,
+      fill: false
+    },
+    {
+      label: 'Nom. Diamter',
+      data: Array(0).fill(3.7),
+      borderColor: 'rgb(63, 235, 48)',
+      // borderDash: [5, 5],
+      tension: 0,
       fill: false
     },
     {
       label: 'Upper Bound',
       data: Array(0).fill(3.9),
       borderColor: 'rgba(255, 0, 0, 0.5)',
-      borderDash: [5, 5],
+      // borderDash: [5, 5],
       tension: 0,
       fill: false
     },
@@ -59,7 +75,7 @@ const hourData = {
       label: 'Lower Bound',
       data: Array(0).fill(3.7),
       borderColor: 'rgba(255, 0, 0, 0.5)',
-      borderDash: [5, 5],
+      // borderDash: [5, 5],
       tension: 0,
       fill: false
     }
@@ -81,14 +97,17 @@ const minuteChart = new Chart(minuteCanvas, {
           display: true,
           text: 'Diameter (mm)'
         },
-        min: 0,
-        max: 10
+        ticks: {
+          maxTicksLimit: 5
+        }
+        // min: 0,
+        // max: 10
       },
       x: {
-        title: {
-          display: true,
-          text: 'Time'
-        },
+        // title: {
+        //   display: true,
+        //   text: 'Time'
+        // },
         ticks: {
           maxRotation: 45,
           minRotation: 45,
@@ -103,6 +122,11 @@ const minuteChart = new Chart(minuteCanvas, {
       legend: {
         display: true,
         align: 'start'
+      }
+    },
+    elements: {
+      point: {
+        radius: 0  
       }
     }
   }
@@ -120,18 +144,22 @@ const hourChart = new Chart(hourCanvas, {
           display: true,
           text: 'Diameter (mm)'
         },
-        min: 0,
-        max: 10
+        ticks: {
+          maxTicksLimit: 5
+        }
+        // min: 0,
+        // max: 10
       },
       x: {
-        title: {
-          display: true,
-          text: 'Time'
-        },
+        // title: {
+        //   display: true,
+        //   text: 'Time'
+        // },
         ticks: {
           maxRotation: 45,
           minRotation: 45,
-          maxTicksLimit: 3
+
+          maxTicksLimit: 5
         }
       }
     },
@@ -140,8 +168,13 @@ const hourChart = new Chart(hourCanvas, {
     },
     plugins: {
       legend: {
-        display: true,
+        display: false,
         align: 'start'
+      }
+    },
+    elements: {
+      point: {
+        radius: 0  // This removes the points
       }
     }
   }
@@ -149,8 +182,11 @@ const hourChart = new Chart(hourCanvas, {
 
 let lastTenPoints: number[] = []
 let lastState: SerialState | null= null;
+let elapsedTime = 0;
+let timer: NodeJS.Timeout | null;
 
 interface SerialState {
+  connected: boolean;
   recording: boolean;
   max: number;
   min: number;
@@ -168,6 +204,7 @@ interface Window {
       onStateChange: (callback: (state: SerialState) => void) => void;
       removeListeners: () => void;
       sendCommand: (command: string) => Promise<{ success: boolean; error?: string }>;
+      setState: (command: SerialState) => Promise<{ success: boolean; error?: string }>;
       openFolder: () => Promise<{ success: boolean; error?: string }>;
   };
 }
@@ -194,10 +231,15 @@ document.addEventListener('DOMContentLoaded', () => {
   connectToSerial();
 });
 
+function hideErrorDialog() {
+  (document.getElementById('errorDialog')as HTMLInputElement).style.display = 'none'
+}
+
 
 
 window.serialApi.onDiameterChange((diameter) => {
   const diameterValue = parseFloat(diameter);
+  (document.getElementById('filamentDiameterText') as HTMLElement).textContent = `${diameterValue} mm`;
   if (!isNaN(diameterValue)) {
     const currentTime = new Date();
     const timeLabel = formatTimeLabel(currentTime);
@@ -205,19 +247,32 @@ window.serialApi.onDiameterChange((diameter) => {
     // Update minute data
     if (minuteData.datasets[0].data.length < 60) {
       minuteData.datasets[0].data.push(diameterValue);
-      minuteData.labels.push(timeLabel);
+      minuteData.datasets[1].data.push(lastState?.target || 0);
+      minuteData.datasets[2].data.push(lastState?.lowerLimit || 0);
+      minuteData.datasets[3].data.push(lastState?.upperLimit || 0);
+      minuteData.labels.push("");
     } else {
       minuteData.datasets[0].data.shift();
       minuteData.datasets[0].data.push(diameterValue);
+      minuteData.datasets[1].data.shift();
+      minuteData.datasets[1].data.push(lastState?.target || 0);
+      minuteData.datasets[2].data.shift();
+      minuteData.datasets[2].data.push(lastState?.lowerLimit || 0);
+      minuteData.datasets[3].data.shift();
+      minuteData.datasets[3].data.push(lastState?.upperLimit || 0);
       minuteData.labels.shift();
-      minuteData.labels.push(timeLabel);
+      minuteData.labels.push("");
     }
     minuteChart.update();
     
-    if(lastTenPoints.length >= 10) {
+    if(lastTenPoints.length >= 20) {
       const average = lastTenPoints.reduce((acc, val) => acc + val, 0) / lastTenPoints.length;
       hourData.datasets[0].data.push(diameterValue);
       hourData.labels.push(timeLabel);
+      hourData.datasets[1].data.push(lastState?.target || 0);
+      hourData.datasets[2].data.push(lastState?.lowerLimit || 0);
+      hourData.datasets[3].data.push(lastState?.upperLimit || 0);
+      
       hourChart.update();
       lastTenPoints = []
     } else {
@@ -227,16 +282,68 @@ window.serialApi.onDiameterChange((diameter) => {
 });
 
 window.serialApi.onStateChange((state) => {
+  // console.log(state)
   if (state.recording == true && (lastState == null || lastState.recording == false)){
     minuteData.datasets[0].data = []
     minuteData.labels = [];
     minuteChart.update();
     hourData.datasets[0].data = []
     hourData.labels = []
+    elapsedTime = 0
+    timer = setInterval(tick, 1000);
     hourChart.update();
+    (document.getElementById('startBtn')as HTMLInputElement).disabled = true;
+    (document.getElementById('stopBtn')as HTMLInputElement).disabled = false;
   }
-  lastState = state
+  console.log(state)
+  if (state.connected == true && (lastState == null || lastState.connected == false)) {
+    (document.getElementById('errorMessage')as HTMLInputElement).style.display = 'none';
+    (document.getElementById('startBtn')as HTMLInputElement).disabled = false;
+  } 
 
+  if (state.connected == false && (lastState == null || lastState.connected == true)) {
+    (document.getElementById('errorMessage')as HTMLInputElement).style.display = 'block';
+    (document.getElementById('startBtn')as HTMLInputElement).disabled = true;
+    if(lastState?.recording) {
+      (document.getElementById('errorDialog')as HTMLInputElement).style.display = 'block';
+    }
+  } 
+
+  if (state.recording == false && (lastState == null || lastState.recording == true)) {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if(state.connected) {
+      (document.getElementById('startBtn')as HTMLInputElement).disabled = false;
+    }
+    (document.getElementById('stopBtn')as HTMLInputElement).disabled = true;
+  }
+  if(lastState == null) {
+    setFormValues({
+      ...state!,
+      target: state.target,
+      upperLimit: state.upperLimit,
+      lowerLimit: state.lowerLimit,
+      spoolNumber: state.spoolNumber,
+      batchNumber: state.batchNumber
+    })
+  } else if(lastState.min != state.min) {
+    setFormValues({
+      ...state!,
+      min: state.min
+    })
+  } else if(lastState.max != state.max) {
+    setFormValues({
+      ...state!,
+      max: state.max
+    })
+  } else if(lastState.spoolNumber != state.spoolNumber) {
+    setFormValues({
+      ...state!,
+      spoolNumber: state.spoolNumber
+    })
+  } 
+  
+  lastState = state
 });
 
 // Clean up listeners when window is closed
@@ -277,3 +384,50 @@ document.getElementById('stopBtn')?.addEventListener('click', async () => {
       console.error('Error sending stop command:', error);
   }
 });
+
+
+async function submitSettings() {
+  let newState: SerialState = {
+      ...lastState!,
+      // description: (document.getElementById('description') as HTMLTextAreaElement).value,
+      target: parseFloat((document.getElementById('filamentDiameter') as HTMLInputElement).value),
+      upperLimit: parseFloat((document.getElementById('upperLimit') as HTMLInputElement).value),
+      lowerLimit: parseFloat((document.getElementById('lowestLimit') as HTMLInputElement).value),
+      spoolNumber: parseInt((document.getElementById('spoolNumber') as HTMLInputElement).value),
+      batchNumber: parseInt((document.getElementById('batchNumber') as HTMLInputElement).value)
+  };
+  console.log(newState)
+
+  const result = await window.serialApi.setState(newState);
+      if (!result.success) {
+          console.error('Failed to send set state:', result.error);
+      }
+  // You can add your API call or further processing here
+}
+
+// Function to set form values
+function setFormValues(state: SerialState) {
+  let min = state.min
+  console.log("set form")
+  console.log(state);
+  
+  if (min == Infinity) {
+    min = 0
+  }
+  // (document.getElementById('description') as HTMLTextAreaElement).value = state.description || '';
+  (document.getElementById('filamentDiameter') as HTMLInputElement).value = String(state.target || 1.75);
+  (document.getElementById('upperLimit') as HTMLInputElement).value = String(state.upperLimit || 1.80);
+  (document.getElementById('lowestLimit') as HTMLInputElement).value = String(state.lowerLimit || 1.70);
+  (document.getElementById('spoolNumber') as HTMLInputElement).value = String(state.spoolNumber || 0);
+  (document.getElementById('batchNumber') as HTMLInputElement).value = String(state.batchNumber || 0);
+  (document.getElementById('maxText') as HTMLElement).textContent = `${state.max || 0} mm`;
+  (document.getElementById('minText') as HTMLElement).textContent = `${min || 0} mm`;
+  (document.getElementById('spoolNumberText') as HTMLElement).textContent = String(state.spoolNumber || 0);
+  (document.getElementById('batchNumberText') as HTMLElement).textContent = String(state.batchNumber || 0);
+}
+
+const tick = () => {
+    elapsedTime++;
+    (document.getElementById('durationText')as HTMLElement).textContent = 
+        `${~~(elapsedTime/3600)}:${(~~(elapsedTime/60)%60).toString().padStart(2,'0')}:${(elapsedTime%60).toString().padStart(2,'0')}`;
+}

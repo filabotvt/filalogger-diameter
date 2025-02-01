@@ -20,18 +20,27 @@ export class SerialHandler {
     private setupIpcHandlers() {
         // Handle connection requests from renderer
         ipcMain.handle('connect-port', async (_, portName: string) => {
-            // try {
-            //     await this.serialService.connectToSerialPort(portName);
+            try {
+                await this.serialService.connectToSerialPort();
                 return { success: true };
-            // } catch (error: any) {
-            //     return { success: false, error: error.message };
-            // }
+            } catch (error: any) {
+                return { success: false, error: error.message };
+            }
         });
 
         // Handle command requests from renderer
         ipcMain.handle('send-command', async (_, command: string) => {
             try {
                 await this.serialService.sendCommand(command);
+                return { success: true };
+            } catch (error: any) {
+                return { success: false, error: error.message };
+            }
+        });
+
+        ipcMain.handle('set-state', async (_, state: SerialState) => {
+            try {
+                await this.serialService.setState(state);
                 return { success: true };
             } catch (error: any) {
                 return { success: false, error: error.message };
@@ -75,6 +84,7 @@ interface SerialPortInfo {
 }
 
 export interface SerialState {
+    connected: boolean;
     recording: boolean;
     max: number;
     min: number;
@@ -110,6 +120,8 @@ class SerialService extends EventEmitter {
     private boundHandleSerialData: (data: string) => void; 
     private readonly CONFIG_FILE = 'settings.json';
     private configPath: string;
+    private connectionInterval: NodeJS.Timeout | null = null;
+
 
     constructor() {
         super();
@@ -119,6 +131,7 @@ class SerialService extends EventEmitter {
         this.configPath = path.join(app.getPath('userData'), this.CONFIG_FILE);
 
         this.state = {
+            connected: false,
             recording: false,
             max: 0,
             min: Infinity,
@@ -135,11 +148,17 @@ class SerialService extends EventEmitter {
         console.log(app.getPath('userData'))
         this.loadSettings();
         this.boundHandleSerialData = this.handleSerialData.bind(this);
-        this.initializeArduino();
+        
     }
 
     public openFolder() {
         shell.openPath(path.join(app.getPath('userData'), 'logs'))
+    }
+
+    public async  connectToSerialPort() {
+        await this.initializeArduino();
+
+        this.emit('stateChange', this.state);
     }
 
     private loadSettings(): void {
@@ -180,15 +199,42 @@ class SerialService extends EventEmitter {
 
     private async initializeArduino(): Promise<void> {
         try {
-            const arduinoPort = await this.findArduinoLeonardo();
-            if (arduinoPort) {
-                console.log('Found Arduino Leonardo at:', arduinoPort);
-                await this.setPort(arduinoPort);
-            } else {
-                console.log('Arduino Leonardo not found');
-            }
+            await this.checkAndConnect();
+            // Start checking every second
+            this.connectionInterval = setInterval(
+                () => this.checkAndConnect(),
+                1000
+            );
         } catch (error) {
             console.error('Error initializing Arduino:', error);
+        }
+    }
+    
+    private async checkAndConnect(): Promise<void> {
+        let previousConnectionState = this.state.connected
+        try {
+            const arduinoPort = await this.findArduinoLeonardo();
+            if (arduinoPort) {
+                if (!this.state.connected) {
+                    console.log('Found Arduino Leonardo at:', arduinoPort);
+                    await this.setPort(arduinoPort);
+                    this.state.connected = true;
+                }
+            } else {
+                if (this.state.connected) {
+                    console.log('Arduino Leonardo disconnected');
+                }
+                this.state.connected = false;
+                if(this.state.recording) {
+                    this.sendCommand("stop")
+                }
+            }
+        } catch (error) {
+            console.error('Error checking Arduino:', error);
+            this.state.connected = false;
+        }
+        if(previousConnectionState != this.state.connected) {
+            this.emit('stateChange', this.state);
         }
     }
 
@@ -278,6 +324,7 @@ class SerialService extends EventEmitter {
                 min: Infinity,
                 max: 0
             };
+            console.log(this.state.spoolNumber)
             this.emit('stateChange', this.state);
         } else if (command === "stop") {
             this.parser.removeListener('data', this.boundHandleSerialData);
@@ -295,8 +342,6 @@ class SerialService extends EventEmitter {
         }
     }
 
-
-
     private parseData(binaryString: string): number { 
         var dec = "" 
         getDec(32);
@@ -311,21 +356,33 @@ class SerialService extends EventEmitter {
         }
     }
 
-
-
     private handleSerialData(dataIn: string): void {
         const diameter = this.parseData(dataIn);
-        if(diameter > this.state.upperLimit) {
-            this.state.upperLimit = diameter
+        if(diameter > this.state.max) {
+            this.state.max = diameter
             this.emit('stateChange', this.state);
         }
-        if(diameter < this.state.lowerLimit) {
-            this.state.lowerLimit = diameter
+        if(diameter < this.state.min) {
+            this.state.min = diameter
             this.emit('stateChange', this.state);
         }
         this.writeToCSV(diameter); // Write to CSV
         this.emit('diameterChange', diameter);
     }
+
+    setState(newState: SerialState): void {
+        this.state = {
+            ...this.state,
+            upperLimit: newState.upperLimit,
+            lowerLimit: newState.lowerLimit,
+            spoolNumber: newState.spoolNumber,
+            batchNumber: newState.batchNumber,
+            target: newState.target
+        }
+        this.saveSettings()
+        this.emit('stateChange', this.state);
+    }
+    
 }
 
 export default SerialService;

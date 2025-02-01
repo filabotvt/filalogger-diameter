@@ -30,7 +30,7 @@
           <div class="form-group flex gap-2 items-center justify-between">
             <label for="filamentDiameter">Filament Diameter</label>
             <div class="flex items-center gap-2">
-              <input type="number" id="filamentDiameter" value="1.75" step="0.01" />
+              <input type="number" id="filamentDiameter" value="1.75" step="0.1" />
               <span class="w-50px">mm</span>
             </div>
           </div>
@@ -38,7 +38,7 @@
           <div class="form-group flex gap-2 items-center justify-between">
             <label for="upperLimit">Upper Limit</label>
             <div class="flex items-center gap-2">
-              <input type="number" id="upperLimit" value="1.80" step="0.01" />
+              <input type="number" id="upperLimit" value="1.80" step="0.1" />
               <span class="w-50px">mm</span>
             </div>
           </div>
@@ -46,7 +46,7 @@
           <div class="form-group flex gap-2 items-center justify-between">
             <label for="lowestLimit">Lower Limit</label>
             <div class="flex items-center gap-2">
-              <input type="number" id="lowestLimit" value="1.70" step="0.01" />
+              <input type="number" id="lowestLimit" value="1.70" step="0.1" />
               <span class="w-50px">mm</span>
             </div>
           </div>
@@ -54,7 +54,7 @@
           <div class="form-group flex gap-2 items-center justify-between">
             <label for="spoolNumber">Spool Number</label>
             <div class="flex items-center gap-2">
-              <input type="number" id="spoolNumber" value="2" />
+              <input type="number" id="spoolNumber" value="0" />
               <button class="upload-link link-btn" id="openFolderBtn">
                 Spool Data Folder
               </button>
@@ -68,6 +68,7 @@
               <span class="w-50px"></span>
             </div>
           </div>
+          <button onclick="submitSettings()" class="submit-btn">Submit</button>
         </div>
       </div>
       <!-- Main container -->
@@ -79,12 +80,12 @@
               <img src="./public/img/gears.png" alt="settings" height="30" width="30" />
             </button>
             <div class="flex-col gap-2 flex">
-              <h3>Diameter <strong id="filamentDiameterText"> 1.75 mm</strong></h3>
-              <h3>Highest Value <strong id="upperLimitText"> 1.75 mm</strong></h3>
-              <h3>Lowest Value <strong id="lowestLimitText"> 1.75 mm</strong></h3>
-              <h3>Spool Number <strong id="spoolNumberText"> 2</strong></h3>
+              <h3>Diameter <strong id="filamentDiameterText"> 0 mm</strong></h3>
+              <h3>Highest Value <strong id="maxText"> 1.75 mm</strong></h3>
+              <h3>Lowest Value <strong id="minText"> 1.75 mm</strong></h3>
+              <h3>Spool Number <strong id="spoolNumberText"> 0</strong></h3>
               <h3>Batch Number <strong id="batchNumberText"> 0</strong></h3>
-              <h3>Duration <strong id="durationText"> 0:00:03</strong></h3>
+              <h3>Duration <strong id="durationText"> 0:00:00</strong></h3>
             </div>
           </div>
           <!-- Logo and action buttons -->
@@ -93,8 +94,8 @@
               <img src="./public/img/filabot5.png" alt="filabot-logo" height="auto" width="80%" class="logo"/>
             </div>
             <div class="action-btns flex flex-1 items-center gap-2 justify-center">
-              <button id="startBtn" class="btn">Start Capture</button>
-              <button id="stopBtn" class="btn">Stop Capture</button>
+              <button id="startBtn" class="btn" disabled>Start Capture</button>
+              <button id="stopBtn" class="btn" disabled>Stop Capture</button>
             </div>
           </div>
         </header>
@@ -111,6 +112,16 @@
           </div>
         </section>
       </div>
+      <div id="errorMessage" class="error-banner" style="display: block;">
+        Device not connected. Please check the connection.
+      </div>
+      <div id="errorDialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-content">
+            <h2>Connection Error</h2>
+            <p>Device abruptly disconnected. Please check the connection.</p>
+            <button onclick="hideErrorDialog()" class="btn">Dismiss</button>
+        </div>
+    </div>
     </main>
     <!-- Include JavaScript files -->
     <script src="dist/renderer.js"></script>
