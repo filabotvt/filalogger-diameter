@@ -156,8 +156,8 @@ const hourChart = new Chart(hourCanvas, {
         //   text: 'Time'
         // },
         ticks: {
-          maxRotation: 45,
-          minRotation: 45,
+          maxRotation: 0,
+          minRotation: 0,
 
           maxTicksLimit: 5
         }
