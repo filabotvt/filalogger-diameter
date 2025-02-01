@@ -239,6 +239,9 @@ function hideErrorDialog() {
 
 window.serialApi.onDiameterChange((diameter) => {
   const diameterValue = parseFloat(diameter);
+  // console.log()
+  // console.log(`${lastState!.upperLimit} ${lastState!.target} ${lastState!.lowerLimit} ${minuteData.datasets[3].data.length} ${hourData.datasets[3].data.length}`);
+  
   (document.getElementById('filamentDiameterText') as HTMLElement).textContent = `${diameterValue} mm`;
   if (!isNaN(diameterValue)) {
     const currentTime = new Date();
@@ -284,19 +287,39 @@ window.serialApi.onDiameterChange((diameter) => {
 window.serialApi.onStateChange((state) => {
   // console.log(state)
   if (state.recording == true && (lastState == null || lastState.recording == false)){
+    console.log("start recording")
     minuteData.datasets[0].data = []
+    minuteData.datasets[1].data = []
+    minuteData.datasets[2].data = []
+    minuteData.datasets[3].data = []
     minuteData.labels = [];
     minuteChart.update();
     hourData.datasets[0].data = []
+    hourData.datasets[1].data = []
+    hourData.datasets[2].data = []
+    hourData.datasets[3].data = []
+
     hourData.labels = []
     elapsedTime = 0
+    // console.log(`${lastState!.upperLimit} ${lastState!.target} ${lastState!.lowerLimit} ${minuteData.datasets[3].data.length} ${hourData.datasets[3].data.length}`);
+
     timer = setInterval(tick, 1000);
     hourChart.update();
     (document.getElementById('startBtn')as HTMLInputElement).disabled = true;
     (document.getElementById('stopBtn')as HTMLInputElement).disabled = false;
   }
-  console.log(state)
+
+  if (state.recording == false && (lastState == null || lastState.recording == true)) {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if(state.connected) {
+      (document.getElementById('startBtn')as HTMLInputElement).disabled = false;
+    }
+    (document.getElementById('stopBtn')as HTMLInputElement).disabled = true;
+  }
+  // console.log(state)
   if (state.connected == true && (lastState == null || lastState.connected == false)) {
+    
     (document.getElementById('errorMessage')as HTMLInputElement).style.display = 'none';
     (document.getElementById('startBtn')as HTMLInputElement).disabled = false;
   } 
@@ -309,14 +332,6 @@ window.serialApi.onStateChange((state) => {
     }
   } 
 
-  if (state.recording == false && (lastState == null || lastState.recording == true)) {
-    if (timer) clearInterval(timer);
-    timer = null;
-    if(state.connected) {
-      (document.getElementById('startBtn')as HTMLInputElement).disabled = false;
-    }
-    (document.getElementById('stopBtn')as HTMLInputElement).disabled = true;
-  }
   if(lastState == null) {
     setFormValues({
       ...state!,
@@ -402,14 +417,13 @@ async function submitSettings() {
       if (!result.success) {
           console.error('Failed to send set state:', result.error);
       }
+  toggleSettings()
   // You can add your API call or further processing here
 }
 
 // Function to set form values
 function setFormValues(state: SerialState) {
   let min = state.min
-  console.log("set form")
-  console.log(state);
   
   if (min == Infinity) {
     min = 0
