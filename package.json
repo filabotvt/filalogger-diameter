@@ -1,6 +1,7 @@
 {
   "name": "filalogger",
-  "version": "1.0.0",
+  "version": "1.0.2",
+  "productName": "Filalogger",
   "description": "Filament Diameter Logger",
   "author": "Nathik Azad",
   "main": "dist/main.js",
@@ -10,7 +11,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "tsc && electron-builder"
   },
   "devDependencies": {
     "@types/node": "^20.17.16",
