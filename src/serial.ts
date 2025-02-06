@@ -315,7 +315,7 @@ class SerialService extends EventEmitter {
 
     private createCsvFile(): void {
         // Create logs directory if it doesn't exist
-        const logsDir = path.join(app.getPath('userData'), 'logs');
+        const logsDir = this.state.saveLocation
         if (!fs.existsSync(logsDir)) {
             fs.mkdirSync(logsDir);
         }
