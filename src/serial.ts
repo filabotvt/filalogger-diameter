@@ -2,7 +2,7 @@
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 import { EventEmitter } from 'events';
-import { ipcMain, app, shell } from 'electron';
+import { ipcMain, app, shell, dialog } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -55,6 +55,17 @@ export class SerialHandler {
                 return { success: false, error: error.message };
             }
         });
+
+        ipcMain.handle('choose-folder', async (_) => {
+            console.log("Choose folder");
+            
+            try {
+                await this.serialService.chooseFolder();
+                return { success: true };
+            } catch (error: any) {
+                return { success: false, error: error.message };
+            }
+        });
     }
 
 
@@ -93,6 +104,7 @@ export interface SerialState {
     upperLimit: number;
     lowerLimit: number;
     target: number;
+    saveLocation: string
 }
 
 interface CSV {
@@ -121,7 +133,7 @@ class SerialService extends EventEmitter {
     private readonly CONFIG_FILE = 'settings.json';
     private configPath: string;
     private connectionInterval: NodeJS.Timeout | null = null;
-
+    private isFolderViewerOpen = false
 
     constructor() {
         super();
@@ -139,7 +151,8 @@ class SerialService extends EventEmitter {
             batchNumber: 0,
             upperLimit: 1.8,
             lowerLimit: 1.6,
-            target: 1.7
+            target: 1.7,
+            saveLocation: app.getPath('documents')
         }
         this.csv = {
             writer: null,
@@ -152,7 +165,27 @@ class SerialService extends EventEmitter {
     }
 
     public openFolder() {
-        shell.openPath(path.join(app.getPath('userData'), 'logs'))
+        shell.openPath(this.state.saveLocation)
+    }
+
+    public async chooseFolder() {
+        if(this.isFolderViewerOpen == true) {
+            return
+        }
+        this.isFolderViewerOpen = true
+        try {
+        const result = await dialog.showOpenDialog({
+            title: 'Select Save Location',
+            defaultPath: this.state.saveLocation,
+            buttonLabel: 'Select Folder',
+            properties: ['openDirectory', 'createDirectory']
+          })
+          this.state.saveLocation = result.filePaths[0]
+          this.saveSettings();
+          this.emit('stateChange', this.state);
+        } finally {
+            this.isFolderViewerOpen = false
+        }
     }
 
     public async  connectToSerialPort() {
@@ -171,7 +204,8 @@ class SerialService extends EventEmitter {
                     spoolNumber: savedSettings.spoolNumber ?? this.state.spoolNumber,
                     target: savedSettings.target ?? this.state.target,
                     upperLimit: savedSettings.upperLimit ?? this.state.upperLimit,
-                    lowerLimit: savedSettings.lowerLimit ?? this.state.lowerLimit
+                    lowerLimit: savedSettings.lowerLimit ?? this.state.lowerLimit,
+                    saveLocation: savedSettings.saveLocation ?? this.state.saveLocation
                 };
             } else {
                 // If file doesn't exist, create it with default values
@@ -189,7 +223,8 @@ class SerialService extends EventEmitter {
                 spoolNumber: this.state.spoolNumber,
                 target: this.state.target,
                 upperLimit: this.state.upperLimit,
-                lowerLimit: this.state.lowerLimit
+                lowerLimit: this.state.lowerLimit,
+                saveLocation: this.state.saveLocation
             };
             fs.writeFileSync(this.configPath, JSON.stringify(settings, null, 2));
         } catch (error) {

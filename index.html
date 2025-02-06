@@ -55,9 +55,7 @@
             <label for="spoolNumber">Spool Number</label>
             <div class="flex items-center gap-2">
               <input type="number" id="spoolNumber" value="0" />
-              <button class="upload-link link-btn" id="openFolderBtn">
-                Spool Data Folder
-              </button>
+              <span class="w-50px"></span>
             </div>
           </div>
           <!-- Form group for batch number -->
@@ -68,6 +66,33 @@
               <span class="w-50px"></span>
             </div>
           </div>
+
+          <div class="form-group flex gap-2 items-center justify-between">
+            <label for="folderLocation">Files Location</label>
+            <div class="flex items-center gap-2">
+              <button class="icon-button" aria-label="Open folder" id="openFolderBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v2M22 19V9" />
+                  <path d="m2 10v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9" />
+                </svg>
+              </button>
+              <button class="icon-button" aria-label="Edit folder location" id="chooseFolderBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                </svg>
+              </button>
+              <span class="w-50px"></span>
+            </div>
+          </div>
+          <div class="form-group flex gap-2 items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-20px"></span>
+            <span id="fileLocation">Filalogger</span>
+            </div>
+
+          </div>
+
+          
           <button onclick="submitSettings()" class="submit-btn">Save</button>
         </div>
       </div>

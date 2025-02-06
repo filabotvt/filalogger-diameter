@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('serialApi', {
     openFolder: (command: string) => {
         return ipcRenderer.invoke('open-folder');
     },
+    chooseFolder: (command: string) => {
+        return ipcRenderer.invoke('choose-folder');
+    },
     setState: (state: SerialState) => {
         return ipcRenderer.invoke('set-state', state);
     },

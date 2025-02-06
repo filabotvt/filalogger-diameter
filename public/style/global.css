@@ -194,3 +194,10 @@ label, .form-group span{
 #stopBtn:disabled, #stopBtn.disabled {
     background-image: linear-gradient(to top, #8b0000, #ff6666);
 }
+
+
+#fileLocation {
+    font-weight: lighter;
+    font-size: 1rem;
+}
+  

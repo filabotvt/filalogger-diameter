@@ -195,6 +195,7 @@ interface SerialState {
   upperLimit: number;
   lowerLimit: number;
   target: number;
+  saveLocation: string;
 }
 
 interface Window {
@@ -206,6 +207,7 @@ interface Window {
       sendCommand: (command: string) => Promise<{ success: boolean; error?: string }>;
       setState: (command: SerialState) => Promise<{ success: boolean; error?: string }>;
       openFolder: () => Promise<{ success: boolean; error?: string }>;
+      chooseFolder: () => Promise<{ success: boolean; error?: string }>;
   };
 }
 
@@ -340,7 +342,9 @@ window.serialApi.onStateChange((state) => {
       lowerLimit: state.lowerLimit,
       spoolNumber: state.spoolNumber,
       batchNumber: state.batchNumber
-    })
+    });
+
+    (document.getElementById('fileLocation') as HTMLElement).textContent = state.saveLocation;
   } else if(lastState.min != state.min) {
     setFormValues({
       ...state!,
@@ -356,6 +360,8 @@ window.serialApi.onStateChange((state) => {
       ...state!,
       spoolNumber: state.spoolNumber
     })
+  } else if(lastState.saveLocation != state.saveLocation) {
+    (document.getElementById('fileLocation') as HTMLElement).textContent = state.saveLocation;
   } 
   
   lastState = state
@@ -381,6 +387,17 @@ document.getElementById('startBtn')?.addEventListener('click', async () => {
 document.getElementById('openFolderBtn')?.addEventListener('click', async () => {
   try {
       const result = await window.serialApi.openFolder();
+      if (!result.success) {
+          console.error('Failed to send start command:', result.error);
+      }
+  } catch (error) {
+      console.error('Error sending start command:', error);
+  }
+});
+
+document.getElementById('chooseFolderBtn')?.addEventListener('click', async () => {
+  try {
+      const result = await window.serialApi.chooseFolder();
       if (!result.success) {
           console.error('Failed to send start command:', result.error);
       }
