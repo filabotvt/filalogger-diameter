@@ -11,6 +11,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "pack": "electron-builder --dir",
+    "dist-mac": "electron-builder --mac",
     "dist": "tsc && electron-builder"
   },
   "devDependencies": {
@@ -31,6 +32,11 @@
     "directories": {
         "output": "release",
         "buildResources": "dist"
+    },
+    "mac": {
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": true
     },
     "files": [
         "**/*",

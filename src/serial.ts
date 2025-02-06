@@ -180,9 +180,12 @@ class SerialService extends EventEmitter {
             buttonLabel: 'Select Folder',
             properties: ['openDirectory', 'createDirectory']
           })
-          this.state.saveLocation = result.filePaths[0]
-          this.saveSettings();
-          this.emit('stateChange', this.state);
+          if(result.filePaths[0]) {
+            console.log(`path ${result.filePaths}`)
+            this.state.saveLocation = result.filePaths[0]
+            this.saveSettings();
+            this.emit('stateChange', this.state);
+          }
         } finally {
             this.isFolderViewerOpen = false
         }
