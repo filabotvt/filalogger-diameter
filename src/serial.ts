@@ -152,7 +152,7 @@ class SerialService extends EventEmitter {
             upperLimit: 1.8,
             lowerLimit: 1.6,
             target: 1.7,
-            saveLocation: app.getPath('documents')
+            saveLocation: path.join(app.getPath('documents'), "filalogger")
         }
         this.csv = {
             writer: null,
