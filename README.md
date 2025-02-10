@@ -1,3 +1,4 @@
+<h3>Build Instructions</h3>
 First install node and npm. Then open project directory and run 
 <code>npm install</code>
 
@@ -12,7 +13,10 @@ To build executable for windows
 <code>npm run build</code>
 <code>npm run dist</code>
 
-The architecture of this project is it is built using electron. There is node backend and chrome app front end. They both are separate processes and communicate via ipc.
+<div>The executables will be saved in releases folder. Make sure to modify the version inside package.json folder</div> To not get unidentified developer warning on the install, the executable has to be <a href="https://help.apple.com/xcode/mac/current/#/dev033e997ca">signed.</a>
+
+<h3>Architecture</h3>
+This project is built using electron and written in typescript. There is node backend and chrome app front end. They both are separate processes and communicate via ipc.
 The backend has an event listener on serial data and whenever there is serial data, it parses the bits into a float and then pushes the float to the front.
 The parsing logic is inside serial.ts. It is a thirteen byte string and the bytes of importance are 8,9 & 10
 <code>
