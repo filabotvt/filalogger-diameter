@@ -97,6 +97,7 @@ interface SerialPortInfo {
 export interface SerialState {
     connected: boolean;
     recording: boolean;
+    description: string;
     max: number;
     min: number;
     spoolNumber: number;
@@ -145,6 +146,7 @@ class SerialService extends EventEmitter {
         this.state = {
             connected: false,
             recording: false,
+            description: "",
             max: 0,
             min: Infinity,
             spoolNumber: 0,
@@ -208,7 +210,8 @@ class SerialService extends EventEmitter {
                     target: savedSettings.target ?? this.state.target,
                     upperLimit: savedSettings.upperLimit ?? this.state.upperLimit,
                     lowerLimit: savedSettings.lowerLimit ?? this.state.lowerLimit,
-                    saveLocation: savedSettings.saveLocation ?? this.state.saveLocation
+                    saveLocation: savedSettings.saveLocation ?? this.state.saveLocation,
+                    description: savedSettings.description ?? this.state.description
                 };
             } else {
                 // If file doesn't exist, create it with default values
@@ -227,7 +230,8 @@ class SerialService extends EventEmitter {
                 target: this.state.target,
                 upperLimit: this.state.upperLimit,
                 lowerLimit: this.state.lowerLimit,
-                saveLocation: this.state.saveLocation
+                saveLocation: this.state.saveLocation,
+                description: this.state.description
             };
             fs.writeFileSync(this.configPath, JSON.stringify(settings, null, 2));
         } catch (error) {
@@ -325,9 +329,14 @@ class SerialService extends EventEmitter {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         const year = date.getFullYear();
-        const filename = `${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
-        this.csv.filePath = path.join(logsDir, filename);
-
+        if(this.state.description && this.state.description.length > 0) {
+            const filename = `${this.state.description}___${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
+            this.csv.filePath = path.join(logsDir, filename);
+        } else {
+            const filename = `${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
+            this.csv.filePath = path.join(logsDir, filename);
+        }
+        console.log(this.csv.filePath)
         // Create CSV file with headers
         this.csv.writer = fs.createWriteStream(this.csv.filePath);
         this.csv.writer.write('Timestamp,Diameter\n');
@@ -415,7 +424,8 @@ class SerialService extends EventEmitter {
             lowerLimit: newState.lowerLimit,
             spoolNumber: newState.spoolNumber,
             batchNumber: newState.batchNumber,
-            target: newState.target
+            target: newState.target,
+            description: newState.description
         }
         this.saveSettings()
         this.emit('stateChange', this.state);

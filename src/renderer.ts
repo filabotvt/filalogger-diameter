@@ -196,6 +196,7 @@ interface SerialState {
   lowerLimit: number;
   target: number;
   saveLocation: string;
+  description: string;
 }
 
 interface Window {
@@ -421,7 +422,7 @@ document.getElementById('stopBtn')?.addEventListener('click', async () => {
 async function submitSettings() {
   let newState: SerialState = {
       ...lastState!,
-      // description: (document.getElementById('description') as HTMLTextAreaElement).value,
+      description: (document.getElementById('description') as HTMLTextAreaElement).value,
       target: parseFloat((document.getElementById('filamentDiameter') as HTMLInputElement).value),
       upperLimit: parseFloat((document.getElementById('upperLimit') as HTMLInputElement).value),
       lowerLimit: parseFloat((document.getElementById('lowestLimit') as HTMLInputElement).value),
@@ -445,7 +446,7 @@ function setFormValues(state: SerialState) {
   if (min == Infinity) {
     min = 0
   }
-  // (document.getElementById('description') as HTMLTextAreaElement).value = state.description || '';
+  (document.getElementById('description') as HTMLTextAreaElement).value = state.description || '';
   (document.getElementById('filamentDiameter') as HTMLInputElement).value = String(state.target || 1.75);
   (document.getElementById('upperLimit') as HTMLInputElement).value = String(state.upperLimit || 1.80);
   (document.getElementById('lowestLimit') as HTMLInputElement).value = String(state.lowerLimit || 1.70);
