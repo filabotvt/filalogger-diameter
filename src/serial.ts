@@ -324,16 +324,16 @@ class SerialService extends EventEmitter {
             fs.mkdirSync(logsDir);
         }
 
-        // Generate filename in mm-dd-yyyy___Spool<number> format
+        // Generate filename in mm-dd-yyyy___Batch<number>___Spool<number> format
         const date = new Date();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         const year = date.getFullYear();
         if(this.state.description && this.state.description.length > 0) {
-            const filename = `${this.state.description}___${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
+            const filename = `${this.state.description}___${month}-${day}-${year}___Batch${this.state.batchNumber}___Spool${this.state.spoolNumber}.csv`;
             this.csv.filePath = path.join(logsDir, filename);
         } else {
-            const filename = `${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
+            const filename = `${month}-${day}-${year}___Batch${this.state.batchNumber}___Spool${this.state.spoolNumber}.csv`;
             this.csv.filePath = path.join(logsDir, filename);
         }
         console.log(this.csv.filePath)

@@ -430,6 +430,10 @@ async function submitSettings() {
       batchNumber: parseInt((document.getElementById('batchNumber') as HTMLInputElement).value)
   };
   console.log(newState)
+  if(newState.batchNumber != lastState?.batchNumber) {
+    newState.spoolNumber = 0;
+    (document.getElementById('spoolNumber') as HTMLInputElement).value = String(newState.spoolNumber)
+  }
 
   const result = await window.serialApi.setState(newState);
       if (!result.success) {
