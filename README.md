@@ -40,6 +40,5 @@ Configuration data is stored in state and passed, back and forth via ipc. The st
 Note: The external measurement device is solar powered and needs light to work.
 
 
-
-
+Latest releases are uploaded to https://github.com/filabotvt/filalogger-diameter/releases
 
