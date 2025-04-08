@@ -372,7 +372,6 @@ window.serialApi.onStateChange((state) => {
 window.addEventListener('beforeunload', () => {
   window.serialApi.removeListeners();
 });
- 
 
 document.getElementById('startBtn')?.addEventListener('click', async () => {
   try {
@@ -418,30 +417,41 @@ document.getElementById('stopBtn')?.addEventListener('click', async () => {
   }
 });
 
-
-async function submitSettings() {
+async function sendState() {
   let newState: SerialState = {
-      ...lastState!,
-      description: (document.getElementById('description') as HTMLTextAreaElement).value,
-      target: parseFloat((document.getElementById('filamentDiameter') as HTMLInputElement).value),
-      upperLimit: parseFloat((document.getElementById('upperLimit') as HTMLInputElement).value),
-      lowerLimit: parseFloat((document.getElementById('lowestLimit') as HTMLInputElement).value),
-      spoolNumber: parseInt((document.getElementById('spoolNumber') as HTMLInputElement).value),
-      batchNumber: parseInt((document.getElementById('batchNumber') as HTMLInputElement).value)
+    ...lastState!,
+    description: (document.getElementById('description') as HTMLTextAreaElement).value,
+    target: parseFloat((document.getElementById('filamentDiameter') as HTMLInputElement).value),
+    upperLimit: parseFloat((document.getElementById('upperLimit') as HTMLInputElement).value),
+    lowerLimit: parseFloat((document.getElementById('lowestLimit') as HTMLInputElement).value),
+    spoolNumber: parseInt((document.getElementById('spoolNumber') as HTMLInputElement).value),
+    batchNumber: parseInt((document.getElementById('batchNumber') as HTMLInputElement).value)
   };
   console.log(newState)
-  if(newState.batchNumber != lastState?.batchNumber) {
-    newState.spoolNumber = 0;
-    (document.getElementById('spoolNumber') as HTMLInputElement).value = String(newState.spoolNumber)
-  }
 
   const result = await window.serialApi.setState(newState);
-      if (!result.success) {
-          console.error('Failed to send set state:', result.error);
-      }
-  toggleSettings()
-  // You can add your API call or further processing here
+  if (!result.success) {
+    console.error('Failed to send set state:', result.error);
+  }
 }
+
+async function clickSave() {
+  await sendState();
+  toggleSettings()
+}
+
+// Add event listener for batch number changes
+document.getElementById('batchNumber')?.addEventListener('change', () => {
+  (document.getElementById('spoolNumber') as HTMLInputElement).value = '0';
+  sendState();
+});
+
+// Add event listeners to all settings fields
+document.getElementById('description')?.addEventListener('change', sendState);
+document.getElementById('filamentDiameter')?.addEventListener('change', sendState);
+document.getElementById('upperLimit')?.addEventListener('change', sendState);
+document.getElementById('lowestLimit')?.addEventListener('change', sendState);
+document.getElementById('spoolNumber')?.addEventListener('change', sendState);
 
 // Function to set form values
 function setFormValues(state: SerialState) {

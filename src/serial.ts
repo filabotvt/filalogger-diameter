@@ -207,6 +207,7 @@ class SerialService extends EventEmitter {
                 this.state = {
                     ...this.state,
                     spoolNumber: savedSettings.spoolNumber ?? this.state.spoolNumber,
+                    batchNumber: savedSettings.batchNumber ?? this.state.batchNumber,
                     target: savedSettings.target ?? this.state.target,
                     upperLimit: savedSettings.upperLimit ?? this.state.upperLimit,
                     lowerLimit: savedSettings.lowerLimit ?? this.state.lowerLimit,
@@ -227,6 +228,7 @@ class SerialService extends EventEmitter {
         try {
             const settings = {
                 spoolNumber: this.state.spoolNumber,
+                batchNumber: this.state.batchNumber,
                 target: this.state.target,
                 upperLimit: this.state.upperLimit,
                 lowerLimit: this.state.lowerLimit,
