@@ -1,10 +1,9 @@
 // serial.ts
-import { SerialPort } from 'serialport';
-import { ReadlineParser } from '@serialport/parser-readline';
 import { EventEmitter } from 'events';
 import { ipcMain, app, shell, dialog } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Device, Leonardo, Mituoyo } from './devices';
 
 
 
@@ -88,11 +87,8 @@ export class SerialHandler {
     }
 }
 
-interface SerialPortInfo {
-    path: string;
-    vendorId?: string;
-    productId?: string;
-}
+// Available device types for auto-detection
+const DEVICE_TYPES = [Leonardo, Mituoyo];
 
 export interface SerialState {
     connected: boolean;
@@ -125,22 +121,17 @@ declare interface SerialService {
 }
 
 class SerialService extends EventEmitter {
-    private serialPort: SerialPort | null;
-    private portDataIsSet: boolean;
-    private parser: ReadlineParser | null;
+    private device: Device | null = null;
     private state: SerialState;
-    private csv: CSV
-    private boundHandleSerialData: (data: string) => void; 
+    private csv: CSV;
+    private boundHandleDiameter: (diameter: number) => void;
     private readonly CONFIG_FILE = 'settings.json';
     private configPath: string;
     private connectionInterval: NodeJS.Timeout | null = null;
-    private isFolderViewerOpen = false
+    private isFolderViewerOpen = false;
 
     constructor() {
         super();
-        this.serialPort = null;
-        this.parser = null;
-        this.portDataIsSet = false;
         this.configPath = path.join(app.getPath('userData'), this.CONFIG_FILE);
 
         this.state = {
@@ -155,15 +146,14 @@ class SerialService extends EventEmitter {
             lowerLimit: 1.6,
             target: 1.7,
             saveLocation: path.join(app.getPath('documents'), "filalogger")
-        }
+        };
         this.csv = {
             writer: null,
             filePath: null
-        }
-        console.log(app.getPath('userData'))
+        };
+        console.log(app.getPath('userData'));
         this.loadSettings();
-        this.boundHandleSerialData = this.handleSerialData.bind(this);
-        
+        this.boundHandleDiameter = this.handleDiameter.bind(this);
     }
 
     public openFolder() {
@@ -193,8 +183,8 @@ class SerialService extends EventEmitter {
         }
     }
 
-    public async  connectToSerialPort() {
-        await this.initializeArduino();
+    public async connectToSerialPort() {
+        await this.initializeDevice();
 
         this.emit('stateChange', this.state);
     }
@@ -207,6 +197,7 @@ class SerialService extends EventEmitter {
                 this.state = {
                     ...this.state,
                     spoolNumber: savedSettings.spoolNumber ?? this.state.spoolNumber,
+                    batchNumber: savedSettings.batchNumber ?? this.state.batchNumber,
                     target: savedSettings.target ?? this.state.target,
                     upperLimit: savedSettings.upperLimit ?? this.state.upperLimit,
                     lowerLimit: savedSettings.lowerLimit ?? this.state.lowerLimit,
@@ -227,6 +218,7 @@ class SerialService extends EventEmitter {
         try {
             const settings = {
                 spoolNumber: this.state.spoolNumber,
+                batchNumber: this.state.batchNumber,
                 target: this.state.target,
                 upperLimit: this.state.upperLimit,
                 lowerLimit: this.state.lowerLimit,
@@ -239,7 +231,7 @@ class SerialService extends EventEmitter {
         }
     }
 
-    private async initializeArduino(): Promise<void> {
+    private async initializeDevice(): Promise<void> {
         try {
             await this.checkAndConnect();
             // Start checking every second
@@ -248,71 +240,59 @@ class SerialService extends EventEmitter {
                 1000
             );
         } catch (error) {
-            console.error('Error initializing Arduino:', error);
+            console.error('Error initializing device:', error);
         }
     }
-    
+
+    /**
+     * Find and connect to the first available device
+     */
+    private async findAvailableDevice(): Promise<Device | null> {
+        for (const DeviceClass of DEVICE_TYPES) {
+            const device = new DeviceClass();
+            try {
+                const found = await device.find();
+                if (found) {
+                    console.log(`Found device: ${device.deviceInfo.name}`);
+                    return device;
+                }
+            } catch (error) {
+                console.error(`Error checking ${device.deviceInfo.name}:`, error);
+            }
+        }
+        return null;
+    }
+
     private async checkAndConnect(): Promise<void> {
-        let previousConnectionState = this.state.connected
+        let previousConnectionState = this.state.connected;
         try {
-            const arduinoPort = await this.findArduinoLeonardo();
-            if (arduinoPort) {
+            const availableDevice = await this.findAvailableDevice();
+            if (availableDevice) {
                 if (!this.state.connected) {
-                    console.log('Found Arduino Leonardo at:', arduinoPort);
-                    await this.setPort(arduinoPort);
+                    console.log('Connecting to:', availableDevice.deviceInfo.name);
+                    await availableDevice.connect();
+                    this.device = availableDevice;
                     this.state.connected = true;
                 }
             } else {
                 if (this.state.connected) {
-                    console.log('Arduino Leonardo disconnected');
+                    console.log('Device disconnected');
+                    if (this.device) {
+                        await this.device.disconnect();
+                        this.device = null;
+                    }
                 }
                 this.state.connected = false;
-                if(this.state.recording) {
-                    this.sendCommand("stop")
+                if (this.state.recording) {
+                    this.sendCommand("stop");
                 }
             }
         } catch (error) {
-            console.error('Error checking Arduino:', error);
+            console.error('Error checking device:', error);
             this.state.connected = false;
         }
-        if(previousConnectionState != this.state.connected) {
+        if (previousConnectionState != this.state.connected) {
             this.emit('stateChange', this.state);
-        }
-    }
-
-    private async findArduinoLeonardo(): Promise<string | null> {
-        try {
-            const ports = await SerialPort.list();
-            const leonardo = ports.find((port: SerialPortInfo) => 
-                port.vendorId === '2341' && port.productId === '8036'
-            );
-            return leonardo ? leonardo.path : null;
-        } catch (error) {
-            console.error('Error listing ports:', error);
-            return null;
-        }
-    }
-
-    private setPort(portName: string): void {
-        try {
-            console.log("Opening serial")
-            this.serialPort = new SerialPort({
-                path: portName,
-                baudRate: 115200,
-                dataBits: 8,
-                parity: 'none',
-                stopBits: 1,
-                rtscts: true
-            });
-            console.log("Opening serial success")
-            this.portDataIsSet = true;
-
-            // Set up parser to handle incoming data
-            this.parser = new ReadlineParser({ delimiter: '\r\n' });
-            this.serialPort.pipe(this.parser);
-        } catch (error) {
-            console.error('Error setting up serial port:', error);
-            throw error;
         }
     }
 
@@ -324,16 +304,16 @@ class SerialService extends EventEmitter {
             fs.mkdirSync(logsDir);
         }
 
-        // Generate filename in mm-dd-yyyy___Spool<number> format
+        // Generate filename in mm-dd-yyyy___Batch<number>___Spool<number> format
         const date = new Date();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         const year = date.getFullYear();
         if(this.state.description && this.state.description.length > 0) {
-            const filename = `${this.state.description}___${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
+            const filename = `${this.state.description}___${month}-${day}-${year}___Batch${this.state.batchNumber}___Spool${this.state.spoolNumber}.csv`;
             this.csv.filePath = path.join(logsDir, filename);
         } else {
-            const filename = `${month}-${day}-${year}___Spool${this.state.spoolNumber}.csv`;
+            const filename = `${month}-${day}-${year}___Batch${this.state.batchNumber}___Spool${this.state.spoolNumber}.csv`;
             this.csv.filePath = path.join(logsDir, filename);
         }
         console.log(this.csv.filePath)
@@ -356,7 +336,7 @@ class SerialService extends EventEmitter {
     }
 
     public async sendCommand(command: string): Promise<void> {
-        if (!this.parser || !this.serialPort) {
+        if (!this.device || !this.device.connected) {
             return;
         }
         
@@ -364,17 +344,19 @@ class SerialService extends EventEmitter {
             this.state.spoolNumber++;
             this.saveSettings();
             this.createCsvFile(); // Create new CSV file
-            this.parser.on('data', this.boundHandleSerialData);
+            this.device.on('diameter', this.boundHandleDiameter);
+            this.device.startReading();
             this.state = {
                 ...this.state,
                 recording: true,
                 min: Infinity,
                 max: 0
             };
-            console.log(this.state.spoolNumber)
+            console.log(this.state.spoolNumber);
             this.emit('stateChange', this.state);
         } else if (command === "stop") {
-            this.parser.removeListener('data', this.boundHandleSerialData);
+            this.device.stopReading();
+            this.device.removeListener('diameter', this.boundHandleDiameter);
             // Close CSV file if it's open
             if (this.csv.writer) {
                 this.csv.writer.end();
@@ -389,28 +371,17 @@ class SerialService extends EventEmitter {
         }
     }
 
-    private parseData(binaryString: string): number { 
-        var dec = "" 
-        getDec(32);
-        dec += "."
-        getDec(36);
-        getDec(40);
-        return parseFloat(dec)
-
-        function getDec(index: number) {
-            let binaryByte = binaryString.substring(index, index + 4).split("").reverse().join("")
-            dec += parseInt(binaryByte, 2);  
-        }
-    }
-
-    private handleSerialData(dataIn: string): void {
-        const diameter = this.parseData(dataIn);
-        if(diameter > this.state.max) {
-            this.state.max = diameter
+    /**
+     * Handle diameter data from any device
+     * @param diameter - Diameter in millimeters (mm)
+     */
+    private handleDiameter(diameter: number): void {
+        if (diameter > this.state.max) {
+            this.state.max = diameter;
             this.emit('stateChange', this.state);
         }
-        if(diameter < this.state.min) {
-            this.state.min = diameter
+        if (diameter < this.state.min) {
+            this.state.min = diameter;
             this.emit('stateChange', this.state);
         }
         this.writeToCSV(diameter); // Write to CSV

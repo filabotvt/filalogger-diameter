@@ -1,6 +1,6 @@
 {
   "name": "filalogger",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "productName": "Filalogger",
   "description": "Filament Diameter Logger",
   "author": "Nathik Azad",
@@ -23,7 +23,8 @@
   "dependencies": {
     "@types/serialport": "^8.0.5",
     "chart.js": "^4.4.7",
-    "serialport": "^13.0.0"
+    "serialport": "^13.0.0",
+    "usb": "^2.11.0"
   },
   "build": {
     "appId": "com.filalogger.app",
